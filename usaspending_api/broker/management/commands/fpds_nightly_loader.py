@@ -119,7 +119,7 @@ class Command(BaseCommand):
         logger.info('Starting insertion of new FPDS data')
 
         place_of_performance_field_map = {
-            # "city_name": "place_of_performance_locat", # location id doesn't mean it's a city. Can't use this mapping
+            "city_name": "place_of_perform_city_name",
             "congressional_code": "place_of_performance_congr",
             "state_code": "place_of_performance_state",
             "zip4": "place_of_performance_zip4a",
