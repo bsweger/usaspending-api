@@ -146,6 +146,8 @@ class Command(BaseCommand):
                                                                                        str(total_rows),
                                                                                        datetime.now() - start_time))
 
+            # This is wasted effort if the legal entity is not newly
+            # created - it only gets used if the LE is new.  Fix?
             legal_entity_location, created = get_or_create_location(
                 legal_entity_location_field_map, row, {"recipient_flag": True}
             )
