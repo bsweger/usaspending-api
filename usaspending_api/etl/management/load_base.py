@@ -127,8 +127,7 @@ def load_file_d1(submission_attributes, procurement_data, db_cursor, quick=False
     }
 
     place_of_performance_field_map = {
-        # not sure place_of_performance_locat maps exactly to city name
-        "city_name": "place_of_performance_locat",
+        "city_name": "place_of_perform_city_name",
         "congressional_code": "place_of_performance_congr",
         "state_code": "place_of_performance_state",
         "zip4": "place_of_performance_zip4a",
