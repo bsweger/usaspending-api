@@ -201,6 +201,11 @@ class Command(BaseCommand):
                                                             row["funding_sub_tier_agency_co"]) or
                               Agency.get_by_subtier_only(row["funding_sub_tier_agency_co"]))
 
+            try:
+                last_modified_date = datetime.strptime(str(row['modified_at']), "%Y-%m-%d %H:%M:%S").date()
+            except ValueError:
+                last_modified_date = datetime.strptime(str(row['modified_at']), "%Y-%m-%d %H:%M:%S.%f").date()
+
             parent_txn_value_map = {
                 "award": award,
                 "awarding_agency": awarding_agency,
@@ -210,7 +215,7 @@ class Command(BaseCommand):
                 "period_of_performance_start_date": format_date(row['period_of_performance_star']),
                 "period_of_performance_current_end_date": format_date(row['period_of_performance_curr']),
                 "action_date": format_date(row['action_date']),
-                "last_modified_date": datetime.strptime(str(row['modified_at']), "%Y-%m-%d %H:%M:%S").date()
+                "last_modified_date": last_modified_date
             }
 
             fad_field_map = {
