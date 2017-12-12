@@ -58,13 +58,13 @@ class Command(BaseCommand):
 
         ids_to_delete = []
 
-        # Iterate through the result dict and determine what needs to be deleted and what needs to be added
-        for row in db_rows:
-            if row['correction_late_delete_ind'] and row['correction_late_delete_ind'].upper() == 'D':
-                ids_to_delete += [row['published_award_financial_assistance_id']]
-                # remove the row from the list of rows from the Broker since once we delete it, we don't care about it.
-                # all that'll be left in db_rows are rows we want to insert
-                db_rows.remove(row)
+        # # Iterate through the result dict and determine what needs to be deleted and what needs to be added
+        # for row in db_rows:
+        #     if row['correction_late_delete_ind'] and row['correction_late_delete_ind'].upper() == 'D':
+        #         ids_to_delete += [row['published_award_financial_assistance_id']]
+        #         # remove the row from the list of rows from the Broker since once we delete it, we don't care about it.
+        #         # all that'll be left in db_rows are rows we want to insert
+        #         db_rows.remove(row)
 
         logger.info('Number of records to insert/update: %s' % str(len(db_rows)))
         logger.info('Number of records to delete: %s' % str(len(ids_to_delete)))
