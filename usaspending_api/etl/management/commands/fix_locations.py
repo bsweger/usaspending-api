@@ -13,10 +13,12 @@ import time
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 
+import psycopg2
+
 logger = logging.getLogger('console')
 exception_logger = logging.getLogger("exceptions")
 
-BATCH_DOWNLOAD_SIZE = 100000
+BATCH_DOWNLOAD_SIZE = 1000000
 
 
 class Command(BaseCommand):
@@ -25,6 +27,21 @@ class Command(BaseCommand):
         parser.add_argument('--batch', type=int, default=BATCH_DOWNLOAD_SIZE, help="ID range to update per query")
         parser.add_argument('--min_transaction_id', type=int, default=1, help="Begin at transaction ID")
         parser.add_argument('--max_transaction_id', type=int, default=0, help="End at transaction ID")
+
+    def execute_with_retries(self, curs, qry, retries=3):
+        tries = 0
+        while True:
+            tries += 1
+            try:
+                curs.execute(qry)
+                return
+            except psycopg2.DatabaseError as e:
+                logger.error('Error while executing\n%s' % "\n".join(qry.splitlines()[:5]))
+                logger.error(str(e))
+                logger.error('Try #%d of %d' % (tries, retries))
+                if tries >= retries:
+                    raise
+
 
     def handle(self, *args, **options):
 
@@ -40,11 +57,11 @@ class Command(BaseCommand):
                 if "${floor}" in base_qry:
                     for (floor, ceiling) in batches:
                         qry = string.Template(base_qry).safe_substitute(floor=floor, ceiling=ceiling)
-                        curs.execute(qry)
+                        self.execute_with_retries(curs, qry)
                         elapsed = time.time() - start
                         logger.info('ID {} to {}, {} s'.format(floor, ceiling, elapsed))
                 else:  # simple query, no iterating over batch
-                    curs.execute(base_qry)
+                    self.execute_with_retries(curs, base_qry)
                     elapsed = time.time() - start
                     logger.info('{} s'.format(elapsed))
 
