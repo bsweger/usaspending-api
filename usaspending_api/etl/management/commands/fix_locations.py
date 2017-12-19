@@ -82,7 +82,7 @@ class Command(BaseCommand):
         FROM   transaction_normalized"""
 
 
-QUERIES = """
+_QUERIES = """
 DROP TABLE IF EXISTS transaction_location_data CASCADE;
 
 
@@ -567,6 +567,37 @@ AND   t.transaction_id < ${ceiling};
 CREATE INDEX ON transaction_to_location (transaction_id, place_of_performance_flag);
 
 
+create index transaction_location_data_grouping_idx on transaction_location_data (
+    data_source,  -- ==> data_source
+    country_name,  -- ==> country_name
+    state_code,  -- ==> state_code
+    state_name,  -- ==> state_name
+    state_description,  -- ==> state_description
+    city_name,  -- ==> city_name
+    city_code,  -- ==> city_code
+    county_name,  -- ==> county_name
+    county_code,  -- ==> county_code
+    address_line1,  -- ==> address_line1
+    address_line2,  -- ==> address_line2
+    address_line3,  -- ==> address_line3
+    foreign_location_description,  -- ==> foreign_location_description
+    zip4,  -- ==> zip4
+    zip_4a,  -- ==> zip_4a
+    congressional_code,  -- ==> congressional_code
+    performance_code,  -- ==> performance_code
+    zip_last4,  -- ==> zip_last4
+    zip5,  -- ==> zip5
+    foreign_postal_code,  -- ==> foreign_postal_code
+    foreign_province,  -- ==> foreign_province
+    foreign_city_name,  -- ==> foreign_city_name
+    place_of_performance_flag,  -- ==> place_of_performance_flag
+    recipient_flag,  -- ==> recipient_flag
+    location_country_code  -- ==> location_country_code
+    );
+    """
+
+
+QUERIES = """
 -- Create locations not yet existing
 WITH new_locs AS (
   INSERT INTO references_location (
