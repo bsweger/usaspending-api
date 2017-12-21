@@ -47,6 +47,8 @@ class Command(BaseCommand):
 
         start = time.time()
         with connection.cursor() as curs:
+            for qry in STATE_ABBREV_TABLE_QUERIES:
+                self.execute_with_retries(curs, qry)
             batches = list(self.find_batches(curs, options))
             for base_qry in QUERIES.split('\n\n'):
                 base_qry = base_qry.strip()
@@ -60,6 +62,22 @@ class Command(BaseCommand):
                         self.execute_with_retries(curs, qry)
                         elapsed = time.time() - start
                         logger.info('ID {} to {}, {} s'.format(floor, ceiling, elapsed))
+                elif "${country}" in base_qry:
+                    # For US, do one state at a time
+                    country = "transaction_location_data.country_name = 'UNITED STATES'"
+                    for (state_abbrev, state_name) in STATE_ABBREVS:
+                        state = "transaction_location_data.state_code = '{}'".format(state_abbrev)
+                        qry = string.Template(base_qry).safe_substitute(country=country, state=state)
+                        self.execute_with_retries(curs, qry)
+                        elapsed = time.time() - start
+                        logger.info('USA - {}, {} s'.format(state_abbrev, elapsed))
+                    # do all non-US at once
+                    country = "COALESCE(transaction_location_data.country_name, '') != 'UNITED STATES'"
+                    state = "true"
+                    qry = string.Template(base_qry).safe_substitute(country=country, state=state)
+                    self.execute_with_retries(curs, qry)
+                    elapsed = time.time() - start
+                    logger.info('USA - {}, {} s'.format(state_abbrev, elapsed))
                 else:  # simple query, no iterating over batch
                     self.execute_with_retries(curs, base_qry)
                     elapsed = time.time() - start
@@ -82,51 +100,8 @@ class Command(BaseCommand):
         FROM   transaction_normalized"""
 
 
-_QUERIES = """
-DROP TABLE IF EXISTS transaction_location_data CASCADE;
 
-
-CREATE TABLE transaction_location_data
-AS
-SELECT t.transaction_id,
-  l.data_source,
-  l.location_id,
-  l.country_name,
-  l.state_code,
-  l.state_name,
-  l.state_description,
-  l.city_name,
-  l.city_code,
-  l.county_name,
-  l.county_code,
-  l.address_line1,
-  l.address_line2,
-  l.address_line3,
-  l.foreign_location_description,
-  l.zip4,
-  l.zip_4a,
-  l.congressional_code,
-  l.performance_code,
-  l.zip_last4,
-  l.zip5,
-  l.foreign_postal_code,
-  l.foreign_province,
-  l.foreign_city_name,
-  l.place_of_performance_flag,
-  l.recipient_flag,
-  l.location_country_code
-FROM   references_location l,
-       transaction_fabs t
-WHERE  false;
-
-
-DROP TABLE IF EXISTS state_abbrevs CASCADE;
-
-
-CREATE TEMPORARY TABLE state_abbrevs (abbrev TEXT PRIMARY KEY, name TEXT NOT NULL);
-
-
-INSERT INTO state_abbrevs (abbrev, name) VALUES
+STATE_ABBREVS = (
 ('AK', 'ALASKA'),
 ('AL', 'ALABAMA'),
 ('AR', 'ARKANSAS'),
@@ -186,10 +161,52 @@ INSERT INTO state_abbrevs (abbrev, name) VALUES
 ('WA', 'WASHINGTON'),
 ('WI', 'WISCONSIN'),
 ('WV', 'WEST VIRGINIA'),
-('WY', 'WYOMING');
+('WY', 'WYOMING')
+)
 
 
-CREATE INDEX ON state_abbrevs (name);
+STATE_ABBREV_TABLE_QUERIES = (
+"CREATE TEMPORARY TABLE state_abbrevs (abbrev TEXT PRIMARY KEY, name TEXT NOT NULL);",
+"INSERT INTO state_abbrevs (abbrev, name) VALUES {}".format(',\n'.join(str(s) for s in STATE_ABBREVS)),
+"CREATE INDEX ON state_abbrevs (name);")
+
+
+QUERIES = """
+DROP TABLE IF EXISTS transaction_location_data CASCADE;
+
+
+CREATE TABLE transaction_location_data
+AS
+SELECT t.transaction_id,
+  l.data_source,
+  l.location_id,
+  l.country_name,
+  l.state_code,
+  l.state_name,
+  l.state_description,
+  l.city_name,
+  l.city_code,
+  l.county_name,
+  l.county_code,
+  l.address_line1,
+  l.address_line2,
+  l.address_line3,
+  l.foreign_location_description,
+  l.zip4,
+  l.zip_4a,
+  l.congressional_code,
+  l.performance_code,
+  l.zip_last4,
+  l.zip5,
+  l.foreign_postal_code,
+  l.foreign_province,
+  l.foreign_city_name,
+  l.place_of_performance_flag,
+  l.recipient_flag,
+  l.location_country_code
+FROM   references_location l,
+       transaction_fabs t
+WHERE  false;
 
 
 -- transaction_location_data: recipient, FABS
@@ -514,18 +531,6 @@ CREATE INDEX ON transaction_location_data (transaction_id);
 ALTER TABLE references_location ADD COLUMN IF NOT EXISTS transaction_ids INTEGER[];
 
 
-DROP TABLE IF EXISTS transaction_to_location;
-
-
-CREATE TABLE transaction_to_location AS
-SELECT t.transaction_id,
-       t.place_of_performance_flag,
-       l.location_id
-FROM   transaction_location_data t,
-       references_location l
-WHERE  false;
-
-
 CREATE INDEX IF NOT EXISTS references_location_coalesced_idx ON references_location(
   COALESCE(location_country_code, ''),
   COALESCE(country_name, ''),
@@ -537,15 +542,13 @@ CREATE INDEX IF NOT EXISTS references_location_coalesced_idx ON references_locat
 );
 
 
--- Map existing Location rows to transactions
-INSERT INTO transaction_to_location
+-- Map existing Location rows to transactions for POP
+with subq2 as (
 select t.transaction_id,
-       subq.place_of_performance_flag,
        subq.location_id
 from   transaction_location_data t
 join lateral
-  ( select l.location_id,
-           l.place_of_performance_flag
+  ( select l.location_id
     from   references_location l
     where
            COALESCE(t.location_country_code, '') = COALESCE(l.location_country_code, '')
@@ -556,15 +559,50 @@ join lateral
     AND    COALESCE(t.city_name, '') = COALESCE(l.city_name, '')
     AND    COALESCE(t.county_name, '') = COALESCE(l.county_name, '')
     AND    COALESCE(t.state_name, '') = COALESCE(l.state_name, '')
-    AND    t.recipient_flag = l.recipient_flag
-    AND    t.place_of_performance_flag = l.place_of_performance_flag
+    AND    l.place_of_performance_flag
+    AND    t.place_of_performance_flag
     LIMIT 1
     ) subq ON true
 WHERE t.transaction_id >= ${floor}
-AND   t.transaction_id < ${ceiling};
+AND   t.transaction_id < ${ceiling}
+)
+update transaction_location_data t
+set    location_id = subq2.location_id
+from   subq2
+where  t.transaction_id = subq2.transaction_id
+and    t.place_of_performance_flag;
 
 
-CREATE INDEX ON transaction_to_location (transaction_id, place_of_performance_flag);
+-- Map existing Location rows to transactions for recipient location
+with subq2 as (
+select t.transaction_id,
+       subq.location_id
+from   transaction_location_data t
+join lateral
+  ( select l.location_id
+    from   references_location l
+    where
+           COALESCE(t.location_country_code, '') = COALESCE(l.location_country_code, '')
+    AND    COALESCE(t.country_name, '') = COALESCE(l.country_name, '')
+    AND    COALESCE(t.city_code, '') = COALESCE(l.city_code, '')
+    AND    COALESCE(t.county_code, '') = COALESCE(l.county_code, '')
+    AND    COALESCE(t.state_code, '') = COALESCE(l.state_code, '')
+    AND    COALESCE(t.city_name, '') = COALESCE(l.city_name, '')
+    AND    COALESCE(t.county_name, '') = COALESCE(l.county_name, '')
+    AND    COALESCE(t.state_name, '') = COALESCE(l.state_name, '')
+    AND    l.recipient_flag
+    AND    t.recipient_flag
+    LIMIT 1
+    ) subq ON true
+WHERE t.transaction_id >= ${floor}
+AND   t.transaction_id < ${ceiling}
+)
+update transaction_location_data t
+set    location_id = subq2.location_id
+from   subq2
+where  t.transaction_id = subq2.transaction_id
+and    t.recipient_flag;
+
 
 
 create index transaction_location_data_grouping_idx on transaction_location_data (
@@ -594,10 +632,8 @@ create index transaction_location_data_grouping_idx on transaction_location_data
     recipient_flag,  -- ==> recipient_flag
     location_country_code  -- ==> location_country_code
     );
-    """
 
 
-QUERIES = """
 -- Create locations not yet existing
 WITH new_locs AS (
   INSERT INTO references_location (
@@ -655,22 +691,21 @@ WITH new_locs AS (
     recipient_flag,  -- ==> recipient_flag
     location_country_code  -- ==> location_country_code
   FROM transaction_location_data
-  WHERE (transaction_location_data.transaction_id,
-         transaction_location_data.place_of_performance_flag) NOT IN
-    ( SELECT transaction_id,
-             place_of_performance_flag
-      FROM   transaction_to_location )
-  AND   transaction_location_data.transaction_id >= ${floor}
-  AND   transaction_location_data.transaction_id < ${ceiling}
+  WHERE
+    location_id IS NULL
+  AND   ${country}
+  AND   ${state}
   GROUP BY
     2, 3, 4, 5, 6, 7, 8, 9, 10,
     11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
     21, 22, 23, 24, 25, 26
   RETURNING transaction_ids, place_of_performance_flag, location_id
 )
-INSERT INTO transaction_to_location (transaction_id, place_of_performance_flag, location_id)
-SELECT UNNEST(transaction_ids), place_of_performance_flag, location_id
+UPDATE transaction_location_data
+SET    location_id = new_locs.location_id
 FROM   new_locs
+WHERE  transaction_location_data.transaction_id = ANY(new_locs.transaction_ids)
+AND    transaction_location_data.place_of_performance_flag = new_locs.place_of_performance_flag
 ;
 
 
@@ -679,7 +714,7 @@ ALTER TABLE references_location DROP COLUMN transaction_ids;
 
 UPDATE transaction_normalized
 SET    place_of_performance_id = tl.location_id
-FROM   transaction_to_location tl
+FROM   transaction_location_data tl
 WHERE  transaction_normalized.id = tl.transaction_id
 AND    tl.place_of_performance_flag
 AND    tl.transaction_id >= ${floor}
@@ -689,7 +724,7 @@ AND    tl.transaction_id < ${ceiling}
 
 UPDATE awards
 SET    place_of_performance_id = tl.location_id
-FROM   transaction_to_location tl
+FROM   transaction_location_data tl
 WHERE  awards.latest_transaction_id = tl.transaction_id
 AND    tl.place_of_performance_flag
 AND    tl.transaction_id >= ${floor}
@@ -705,7 +740,7 @@ AND    tl.transaction_id < ${ceiling}
 WITH txn AS (
   SELECT MIN(tl.location_id) AS location_id,
          le.legal_entity_id
-  FROM   transaction_to_location tl
+  FROM   transaction_location_data tl
   JOIN   awards a ON (a.latest_transaction_id = tl.transaction_id)
   JOIN   legal_entity le ON (a.recipient_id = le.legal_entity_id)
   WHERE  NOT tl.place_of_performance_flag
