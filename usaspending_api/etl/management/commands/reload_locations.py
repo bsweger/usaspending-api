@@ -171,7 +171,7 @@ STATE_ABBREV_TABLE_QUERIES = (
 "CREATE INDEX ON state_abbrevs (name);")
 
 
-_QUERIES = """
+QUERIES = """
 DROP TABLE IF EXISTS transaction_location_data CASCADE;
 
 
@@ -540,10 +540,8 @@ CREATE INDEX IF NOT EXISTS references_location_coalesced_idx ON references_locat
   COALESCE(city_name, ''),
   COALESCE(county_name, '')
 );
-"""
 
 
-QUERIES = """
 -- Map existing Location rows to transactions for POP
 with subq2 as (
 select t.transaction_id,
