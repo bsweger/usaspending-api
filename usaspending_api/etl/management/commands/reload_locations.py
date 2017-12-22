@@ -18,7 +18,7 @@ import psycopg2
 logger = logging.getLogger('console')
 exception_logger = logging.getLogger("exceptions")
 
-BATCH_DOWNLOAD_SIZE = 1000000
+BATCH_DOWNLOAD_SIZE = 100000
 
 
 class Command(BaseCommand):
@@ -171,7 +171,7 @@ STATE_ABBREV_TABLE_QUERIES = (
 "CREATE INDEX ON state_abbrevs (name);")
 
 
-QUERIES = """
+_QUERIES = """
 DROP TABLE IF EXISTS transaction_location_data CASCADE;
 
 
@@ -540,8 +540,10 @@ CREATE INDEX IF NOT EXISTS references_location_coalesced_idx ON references_locat
   COALESCE(city_name, ''),
   COALESCE(county_name, '')
 );
+"""
 
 
+QUERIES = """
 -- Map existing Location rows to transactions for POP
 with subq2 as (
 select t.transaction_id,
