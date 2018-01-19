@@ -1,0 +1,6 @@
+-- Refresh the matviews in the correct order
+
+--REFRESH MATERIALIZED VIEW CONCURRENTLY award_matview WITH DATA;
+--REFRESH MATERIALIZED VIEW CONCURRENTLY transaction_matview WITH DATA;
+REFRESH MATERIALIZED VIEW CONCURRENTLY universal_award_matview WITH DATA;
+REFRESH MATERIALIZED VIEW CONCURRENTLY universal_transaction_matview WITH DATA;

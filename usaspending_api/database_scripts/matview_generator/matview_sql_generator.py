@@ -70,7 +70,7 @@ HEADER = [
 MAX_NAME_LENGTH = 45  # postgres max 63 ascii chars
 RANDOM_CHARS = str(uuid4())[:8]
 CLUSTERING_INDEX = None
-DEST_FOLDER = '../matviews/'
+DEST_FOLDER = '../api_matviews/'
 OVERWRITE_FILE = True
 
 
