@@ -6,8 +6,7 @@ SELECT
 FROM
     dblink ('broker_server', '(select
             -- unique ids + cols used for unique id
-            detached_award_proc_unique,
-            NULL AS afa_generated_unique,
+            ''award_'' || detached_award_proc_unique AS transaction_uid,
             piid,
             parent_award_id AS parent_award_piid,
             NULL AS fain,
@@ -92,8 +91,7 @@ FROM
 
         (select
             -- unique ids + cols used for unique id
-            NULL AS detached_award_proc_unique,
-            afa_generated_unique,
+            ''assist_'' || afa_generated_unique AS transaction_uid,
             NULL AS piid,
             NULL AS parent_award_piid,
             fain,

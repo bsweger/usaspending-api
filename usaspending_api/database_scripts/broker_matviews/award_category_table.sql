@@ -27,4 +27,4 @@ VALUES
     ('09', 'insurance'),
     ('11', 'other');
 
-CREATE INDEX IF NOT EXISTS award_category_type_code_idx ON award_category USING btree (type_code);
+CREATE INDEX IF NOT EXISTS award_category_type_code_idx ON award_category USING BTREE(type_code);
