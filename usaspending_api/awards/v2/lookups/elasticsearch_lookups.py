@@ -14,8 +14,22 @@ TRANSACTIONS_LOOKUP = {"Recipient Name": "recipient_name",
                        "Loan Value": "face_value_loan_guarantee",
                        "Subsidy Cost": "original_loan_subsidy_cost",
                        "Mod": "modification_number",
-                       "Award ID": "award_id",
+                       "Award ID": "piid",
                        "awarding_agency_id": "awarding_agency_id"}
+
+TRANSACTIONS_LOOKUP_CONTRACTS = {"Recipient Name": "recipient_name",
+                       "Action Date": "action_date",
+                       "Transaction Amount": "transaction_amount",
+                       "Award Type": "type_description",
+                       "Awarding Agency": "awarding_toptier_agency_name",
+                       "Awarding Sub Agency": "awarding_subtier_agency_name",
+                       "Funding Agency": "funding_toptier_agency_name",
+                       "Funding Sub Agency": "funding_subtier_agency_name",
+                       "Issued Date": "period_of_performance_start_date",
+                       "Mod": "modification_number",
+                       "Award ID": "fain",
+                       "awarding_agency_id": "awarding_agency_id"}
+
 
 award_type_mapping = {
     '02': 'Grants',

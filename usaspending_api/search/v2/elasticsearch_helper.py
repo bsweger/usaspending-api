@@ -5,7 +5,7 @@ import logging
 from django.conf import settings
 from elasticsearch import Elasticsearch
 from usaspending_api.awards.v2.lookups.elasticsearch_lookups \
-        import TRANSACTIONS_LOOKUP, award_type_mapping, award_categories
+        import TRANSACTIONS_LOOKUP, TRANSACTIONS_LOOKUP_CONTRACTS, award_type_mapping, award_categories
 from elasticsearch.exceptions import TransportError, ConnectionError
 
 logger = logging.getLogger('console')
@@ -17,10 +17,13 @@ CLIENT = Elasticsearch(ES_HOSTNAME)
 TRANSACTIONS_LOOKUP.update({v: k for k, v in
                             TRANSACTIONS_LOOKUP.items()}
                            )
+TRANSACTIONS_LOOKUP_CONTRACTS.update({v: k for k, v in
+                                     TRANSACTIONS_LOOKUP.items()}
+                                     )
 
 
-def swap_keys(dictionary_):
-    dictionary_ = dict((TRANSACTIONS_LOOKUP.get(old_key, old_key), new_key)
+def swap_keys(dictionary_, lookup):
+    dictionary_ = dict((lookup.get(old_key, old_key), new_key)
                        for (old_key, new_key) in dictionary_.items())
     return dictionary_
 
@@ -43,9 +46,17 @@ def search_transactions(filters, fields, sort, order, lower_limit, limit):
     if transaction_type_code not found, return results for contracts
     '''
     keyword = filters['keyword']
-    query_fields = [TRANSACTIONS_LOOKUP[i] for i in fields]
+    LOOKUP = TRANSACTIONS_LOOKUP
+    transaction_type = next((award_type_mapping[k] for k in
+                            filters['award_type_codes']
+                            if k in award_type_mapping), 'contracts')
+
+    if transaction_type == 'contracts':
+        LOOKUP = TRANSACTIONS_LOOKUP_CONTRACTS
+    query_fields = [LOOKUP[i] for i in fields]
     query_fields.extend(['piid', 'fain'])
-    query_sort = TRANSACTIONS_LOOKUP[sort]
+    query_sort = LOOKUP[sort]
+
     query = {
         '_source': query_fields,
         'from': lower_limit,
@@ -60,10 +71,6 @@ def search_transactions(filters, fields, sort, order, lower_limit, limit):
                 'order': order}
             }]
         }
-
-    transaction_type = next((award_type_mapping[k] for k in
-                             filters['award_type_codes']
-                             if k in award_type_mapping), 'contracts')
 
     index_name = '{}-{}'.format(TRANSACTIONS_INDEX_ROOT,
                                 transaction_type.lower().replace(' ', ''))
